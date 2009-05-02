@@ -1,0 +1,156 @@
+#!/usr/bin/python
+#+
+# This script periodically executes a given command and monitors the
+# output from it, looking for one or more given numbers and reporting
+# changes, and rates of changes, of those numbers. Invoke this script
+# as follows:
+#
+#     deltamon [<options>] <cmd> <monitor-spec> [<monitor-spec> ...]
+#
+# where <cmd> is the command to execute to examine the output from.
+# Each <monitor-spec> describes a number to monitor in the command output, and
+# looks like this:
+#
+#     <linenr>:<fieldnr>[:<units>]
+#
+# where <linenr> is the line number in the output in which to find the number,
+# <fieldnr> indicates which numeric-looking substring on that line (counting from 1)
+# is that number, and <units> is an arbitrary string (defaults to empty) to display
+# as the units of the quantity.
+#
+# Valid options are as follows:
+#
+#     --interval=<nrseconds>
+#         how long to wait between executions of the command (decimals allowed).
+#         Defaults to 2.0 seconds.
+#     --show-output
+#         if present, then the full output of <cmd> is displayed each time
+#         prior to displaying the extracted numbers.
+#
+# Written by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+#-
+
+from __future__ import division
+import sys
+import time
+import subprocess
+import re
+import getopt
+
+(opts, args) = getopt.getopt \
+  (
+	sys.argv[1:],
+	"",
+	[
+		"interval=",
+		"show-output",
+	]
+  )
+if len(args) < 2 :
+	raise getopt.GetoptError \
+	  (
+		"need <cmd> arg followed by at least one <monitor-spec> arg"
+	  )
+#end if
+interval = 2.0
+show_output = False
+for keyword, value in opts :
+	if keyword == "--interval" :
+		interval = float(value)
+	elif keyword == "--show-output" :
+		show_output = True
+	#end if
+#end for
+cmd = args[0]
+monspecs = []
+for monspec in args[1:] :
+	parts = monspec.split(":", 3)
+	if len(parts) < 3 :
+		raise getopt.GetoptError \
+		  (
+			"<monitor-spec> \"%s\" must be of form <prefix>:<linenr>:<fieldnr>[:<units>]" % monspec
+		 )
+	#end if
+	if len(parts) > 3 :
+		units = parts[3]
+	else :
+		units = ""
+	#end if
+	monspecs.append((int(parts[1]), int(parts[2]), parts[0], units))
+#end for
+monspecs.sort(None, lambda i : i[0])
+monspecs.sort(None, lambda i : i[1])
+
+previous = {}
+while True :
+	child = subprocess.Popen \
+	  (
+		args = cmd,
+		stdout = subprocess.PIPE,
+		close_fds = False,
+		shell = True,
+	  )
+	(data, _) = child.communicate()
+	if child.returncode != 0 :
+		if child.returncode < 0 :
+			sys.stderr.write("child terminated with signal %d\n" % - child.returncode)
+		else :
+			sys.stderr.write("child terminated with status %d\n" % child.returncode)
+		#end if
+		break
+	#end if
+	if show_output :
+		sys.stdout.write(data)
+	#end if
+	data = data.split("\n")
+	mon = iter(monspecs)
+	last_line_nr = None # won't match any valid number
+	numpat = re.compile(r"(?:^|\W)([\+\-]?[0-9]+(?:\.?[0-9]*))")
+	while True :
+		try :
+			monspec = mon.next()
+		except StopIteration :
+			break
+		#end try
+		if monspec[0] > len(data) :
+			break
+		if last_line_nr != monspec[0] :
+			matches = tuple(m.group(1) for m in numpat.finditer(data[monspec[0] - 1]))
+			last_line_nr = monspec[0]
+		#end if
+		if len(matches) >= monspec[1] :
+			value = matches[monspec[1] - 1]
+			dotpos = value.find(".")
+			if dotpos >= 0 :
+				precision = len(value) - dotpos - 1
+				value = float(value)
+			else :
+				precision = 0
+				value = int(value)
+			#end if
+			delta = (value - previous.get(monspec[0:2], 0)) / interval
+			sys.stdout.write \
+			  (
+					(
+						"%%(prefix)s: %%(value).%(precision)df%%(units)s"
+						" (%%(delta).%(precision)df%%(units)s/s)\n"
+					%
+						{"precision" : precision}
+					)
+				%
+					{
+						"value" : value,
+						"delta" : delta,
+						"prefix" : monspec[2],
+						"units" : monspec[3],
+					}
+			  )
+			previous[monspec[0:2]] = value
+		#end if
+	#end while
+	try :
+		time.sleep(interval)
+	except KeyboardInterrupt :
+		break
+	#end try
+#end while
