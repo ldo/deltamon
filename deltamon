@@ -11,9 +11,10 @@
 # Each <monitor-spec> describes a number to monitor in the command output, and
 # looks like this:
 #
-#     <linenr>:<fieldnr>[:<units>]
+#     <prefix>:<linenr>:<fieldnr>[:<units>]
 #
-# where <linenr> is the line number in the output in which to find the number,
+# where <prefix> is an arbitrary string to display in front of the quantity,
+# <linenr> is the line number in the output in which to find the number,
 # <fieldnr> indicates which numeric-looking substring on that line (counting from 1)
 # is that number, and <units> is an arbitrary string (defaults to empty) to display
 # as the units of the quantity.
