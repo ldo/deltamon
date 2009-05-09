@@ -79,9 +79,8 @@ for monspec in args[1:] :
 	#end if
 	monspecs.append((int(parts[1]), int(parts[2]), parts[0], units))
 #end for
-monspecs.sort(None, lambda i : i[0])
-monspecs.sort(None, lambda i : i[1])
 
+numpat = re.compile(r"(?:^|\W)([\+\-]?[0-9]+(?:\.?[0-9]*))")
 previous = {}
 while True :
 	child = subprocess.Popen \
@@ -104,51 +103,49 @@ while True :
 		sys.stdout.write(data)
 	#end if
 	data = data.split("\n")
-	mon = iter(monspecs)
-	last_line_nr = None # won't match any valid number
-	numpat = re.compile(r"(?:^|\W)([\+\-]?[0-9]+(?:\.?[0-9]*))")
-	while True :
-		try :
-			monspec = mon.next()
-		except StopIteration :
-			break
-		#end try
-		if monspec[0] > len(data) :
-			break
-		if last_line_nr != monspec[0] :
-			matches = tuple(m.group(1) for m in numpat.finditer(data[monspec[0] - 1]))
-			last_line_nr = monspec[0]
-		#end if
-		if len(matches) >= monspec[1] :
-			value = matches[monspec[1] - 1]
-			dotpos = value.find(".")
-			if dotpos >= 0 :
-				precision = len(value) - dotpos - 1
-				value = float(value)
-			else :
-				precision = 0
-				value = int(value)
+	parsed = [None] * len(data)
+	for monspec in monspecs :
+		if monspec[0] <= len(data) :
+			if parsed[monspec[0] - 1] == None :
+				parsed[monspec[0] - 1] = tuple(m.group(1) for m in numpat.finditer(data[monspec[0] - 1]))
 			#end if
-			delta = (value - previous.get(monspec[0:2], 0)) / interval
-			sys.stdout.write \
-			  (
-					(
-						"%%(prefix)s: %%(value).%(precision)df%%(units)s"
-						" (%%(delta).%(precision)df%%(units)s/s)\n"
-					%
-						{"precision" : precision}
-					)
-				%
+			line = parsed[monspec[0] - 1]
+			if monspec[1] <= len(line) :
+				value = line[monspec[1] - 1]
+				dotpos = value.find(".")
+				if dotpos >= 0 :
+					precision = len(value) - dotpos - 1
+					value = float(value)
+				else :
+					precision = 0
+					value = int(value)
+				#end if
+				format = "%%(prefix)s: %%(value).%(precision)df%%(units)s"
+				fields = \
 					{
 						"value" : value,
-						"delta" : delta,
 						"prefix" : monspec[2],
 						"units" : monspec[3],
 					}
-			  )
-			previous[monspec[0:2]] = value
+				if previous.has_key(monspec[0:2]) :
+					delta = (value - previous.get(monspec[0:2], 0)) / interval
+					format += " (%%(delta).%(precision)df%%(units)s/s)"
+					fields["delta"] = delta
+				#end if
+				sys.stdout.write \
+				  (
+						(
+							(format + "\n")
+						%
+							{"precision" : precision}
+						)
+					%
+						fields
+				  )
+				previous[monspec[0:2]] = value
+			#end if
 		#end if
-	#end while
+	#end for
 	try :
 		time.sleep(interval)
 	except KeyboardInterrupt :
