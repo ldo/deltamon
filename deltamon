@@ -21,6 +21,9 @@
 #
 # Valid options are as follows:
 #
+#     --autoscale=decimal|binary
+#         automatically scale very large or very small delta values and prepend
+#         appropriate SI prefixes to units
 #     --interval=<nrseconds>
 #         how long to wait between executions of the command (decimals allowed).
 #         Defaults to 2.0 seconds.
@@ -32,16 +35,56 @@
 #-
 
 import sys
+import math
 import time
 import subprocess
 import re
 import getopt
+
+#+
+# Useful stuff
+#-
+
+# long prefixes not actually used currently
+decimal_prefixes = \
+    { # source : <http://en.wikipedia.org/wiki/Decimal_prefix>
+        3 : {"short" : "k", "long" : "kilo"},
+        -3 : {"short" : "m", "long" : "milli"},
+        6 : {"short" : "M", "long" : "mega"},
+        -6 : {"short" : "µ", "long" : "micro"},
+        9 : {"short" : "G", "long" : "giga"},
+        -9 : {"short" : "n", "long" : "nano"},
+        12 : {"short" : "T", "long" : "tera"},
+        -12 : {"short" : "p", "long" : "pico"},
+        15 : {"short" : "P", "long" : "peta"},
+        -15 : {"short" : "f", "long" : "femto"},
+        18 : {"short" : "E", "long" : "exa"},
+        -18 : {"short" : "a", "long" : "atto"},
+        # can't be bothered including any more for now
+    }
+binary_prefixes = \
+    { # source : <http://en.wikipedia.org/wiki/Binary_prefix>
+      # note no negative exponents have been defined here
+        1 : {"short" : "ki", "long" : "kibi"},
+        2 : {"short" : "Mi", "long" : "mebi"},
+        3 : {"short" : "Gi", "long" : "gibi"},
+        4 : {"short" : "Ti", "long" : "tebi"},
+        5 : {"short" : "Pi", "long" : "pebi"},
+        6 : {"short" : "Ei", "long" : "exbi"},
+        7 : {"short" : "Zi", "long" : "zebi"},
+        8 : {"short" : "Yi", "long" : "yobi"},
+    }
+
+#+
+# Mainline
+#-
 
 (opts, args) = getopt.getopt \
   (
     sys.argv[1:],
     "",
     [
+        "autoscale=",
         "interval=",
         "show-output",
     ]
@@ -52,10 +95,23 @@ if len(args) < 2 :
         "need <cmd> arg followed by at least one <monitor-spec> arg"
       )
 #end if
+autoscale = None
 interval = 2.0
 show_output = False
 for keyword, value in opts :
-    if keyword == "--interval" :
+    if keyword == "--autoscale" :
+        if "decimal".startswith(value.lower()) :
+            autoscale = decimal_prefixes
+            scale_multiplier = 10
+            scale_group = 3
+        elif "binary".startswith(value.lower()) :
+            autoscale = binary_prefixes
+            scale_multiplier = 1024
+            scale_group = 1
+        else :
+            raise getopt.GetoptError("unrecognized --autoscale value: “%s”" % value)
+        #end if
+    elif keyword == "--interval" :
         interval = float(value)
     elif keyword == "--show-output" :
         show_output = True
@@ -114,14 +170,18 @@ while True :
                 value = line[monspec[1] - 1]
                 dotpos = value.find(".")
                 if dotpos >= 0 :
-                    precision = len(value) - dotpos - 1
+                    value_precision = len(value) - dotpos - 1
                     value = float(value)
                 else :
-                    precision = 0
+                    value_precision = 0
                     value = int(value)
                 #end if
-                format = "%%(prefix)s: %%(value).%(precision)df%%(units)s"
-                fields = \
+                format = "%%(prefix)s: %%(value).%(value_precision)df%%(units)s"
+                format_fields = \
+                    {
+                        "value_precision" : value_precision,
+                    }
+                data_fields = \
                     {
                         "value" : value,
                         "prefix" : monspec[2],
@@ -129,18 +189,39 @@ while True :
                     }
                 if monspec[0:2] in previous :
                     delta = (value - previous[monspec[0:2]]) / interval
-                    format += " (%%(delta).%(precision)df%%(units)s/s)"
-                    fields["delta"] = delta
+                    delta_precision = 0
+                    scale_prefix = ""
+                    if autoscale != None and delta != 0 :
+                        scale_exp = \
+                            (
+                                math.floor
+                                  (
+                                    math.log(delta) / (math.log(scale_multiplier) * scale_group)
+                                  )
+                            *
+                                scale_group
+                            )
+                        if scale_exp != 0 :
+                            if scale_exp in autoscale :
+                                scale_entry = autoscale[scale_exp]
+                            else :
+                                scale_entry = autoscale[(min, max)[scale_exp > 0](autoscale.keys())]
+                            #end if
+                            delta /= scale_multiplier ** scale_exp
+                            scale_prefix = scale_entry["short"]
+                            delta_precision = 3
+                        #end if
+                    #end if
+                    format += " (%%(delta).%(delta_precision)df%%(scale_prefix)s%%(units)s/s)"
+                    format_fields["delta_precision"] = delta_precision
+                    data_fields["delta"] = delta
+                    data_fields["scale_prefix"] = scale_prefix
                 #end if
                 sys.stdout.write \
                   (
-                        (
-                            (format + "\n")
-                        %
-                            {"precision" : precision}
-                        )
+                        (format + "\n") % format_fields
                     %
-                        fields
+                        data_fields
                   )
                 previous[monspec[0:2]] = value
             #end if
