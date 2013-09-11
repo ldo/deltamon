@@ -40,115 +40,115 @@ import getopt
 
 (opts, args) = getopt.getopt \
   (
-	sys.argv[1:],
-	"",
-	[
-		"interval=",
-		"show-output",
-	]
+    sys.argv[1:],
+    "",
+    [
+        "interval=",
+        "show-output",
+    ]
   )
 if len(args) < 2 :
-	raise getopt.GetoptError \
-	  (
-		"need <cmd> arg followed by at least one <monitor-spec> arg"
-	  )
+    raise getopt.GetoptError \
+      (
+        "need <cmd> arg followed by at least one <monitor-spec> arg"
+      )
 #end if
 interval = 2.0
 show_output = False
 for keyword, value in opts :
-	if keyword == "--interval" :
-		interval = float(value)
-	elif keyword == "--show-output" :
-		show_output = True
-	#end if
+    if keyword == "--interval" :
+        interval = float(value)
+    elif keyword == "--show-output" :
+        show_output = True
+    #end if
 #end for
 cmd = args[0]
 monspecs = []
 for monspec in args[1:] :
-	parts = monspec.split(":", 3)
-	if len(parts) < 3 :
-		raise getopt.GetoptError \
-		  (
-			"<monitor-spec> \"%s\" must be of form <prefix>:<linenr>:<fieldnr>[:<units>]" % monspec
-		 )
-	#end if
-	if len(parts) > 3 :
-		units = parts[3]
-	else :
-		units = ""
-	#end if
-	monspecs.append((int(parts[1]), int(parts[2]), parts[0], units))
+    parts = monspec.split(":", 3)
+    if len(parts) < 3 :
+        raise getopt.GetoptError \
+          (
+            "<monitor-spec> \"%s\" must be of form <prefix>:<linenr>:<fieldnr>[:<units>]" % monspec
+         )
+    #end if
+    if len(parts) > 3 :
+        units = parts[3]
+    else :
+        units = ""
+    #end if
+    monspecs.append((int(parts[1]), int(parts[2]), parts[0], units))
 #end for
 
 numpat = re.compile(r"(?:^|\W)([\+\-]?[0-9]+(?:\.?[0-9]*))")
 previous = {}
 while True :
-	child = subprocess.Popen \
-	  (
-		args = cmd,
-		stdout = subprocess.PIPE,
-		close_fds = False,
-		shell = True,
-	  )
-	(data, _) = child.communicate()
-	if child.returncode != 0 :
-		if child.returncode < 0 :
-			sys.stderr.write("child terminated with signal %d\n" % - child.returncode)
-		else :
-			sys.stderr.write("child terminated with status %d\n" % child.returncode)
-		#end if
-		break
-	#end if
-	if show_output :
-		sys.stdout.write(data)
-	#end if
-	data = data.split("\n")
-	parsed = [None] * len(data)
-	for monspec in monspecs :
-		if monspec[0] <= len(data) :
-			if parsed[monspec[0] - 1] == None :
-				parsed[monspec[0] - 1] = tuple(m.group(1) for m in numpat.finditer(data[monspec[0] - 1]))
-			#end if
-			line = parsed[monspec[0] - 1]
-			if monspec[1] <= len(line) :
-				value = line[monspec[1] - 1]
-				dotpos = value.find(".")
-				if dotpos >= 0 :
-					precision = len(value) - dotpos - 1
-					value = float(value)
-				else :
-					precision = 0
-					value = int(value)
-				#end if
-				format = "%%(prefix)s: %%(value).%(precision)df%%(units)s"
-				fields = \
-					{
-						"value" : value,
-						"prefix" : monspec[2],
-						"units" : monspec[3],
-					}
-				if previous.has_key(monspec[0:2]) :
-					delta = (value - previous.get(monspec[0:2], 0)) / interval
-					format += " (%%(delta).%(precision)df%%(units)s/s)"
-					fields["delta"] = delta
-				#end if
-				sys.stdout.write \
-				  (
-						(
-							(format + "\n")
-						%
-							{"precision" : precision}
-						)
-					%
-						fields
-				  )
-				previous[monspec[0:2]] = value
-			#end if
-		#end if
-	#end for
-	try :
-		time.sleep(interval)
-	except KeyboardInterrupt :
-		break
-	#end try
+    child = subprocess.Popen \
+      (
+        args = cmd,
+        stdout = subprocess.PIPE,
+        close_fds = False,
+        shell = True,
+      )
+    (data, _) = child.communicate()
+    if child.returncode != 0 :
+        if child.returncode < 0 :
+            sys.stderr.write("child terminated with signal %d\n" % - child.returncode)
+        else :
+            sys.stderr.write("child terminated with status %d\n" % child.returncode)
+        #end if
+        break
+    #end if
+    if show_output :
+        sys.stdout.write(data)
+    #end if
+    data = data.split("\n")
+    parsed = [None] * len(data)
+    for monspec in monspecs :
+        if monspec[0] <= len(data) :
+            if parsed[monspec[0] - 1] == None :
+                parsed[monspec[0] - 1] = tuple(m.group(1) for m in numpat.finditer(data[monspec[0] - 1]))
+            #end if
+            line = parsed[monspec[0] - 1]
+            if monspec[1] <= len(line) :
+                value = line[monspec[1] - 1]
+                dotpos = value.find(".")
+                if dotpos >= 0 :
+                    precision = len(value) - dotpos - 1
+                    value = float(value)
+                else :
+                    precision = 0
+                    value = int(value)
+                #end if
+                format = "%%(prefix)s: %%(value).%(precision)df%%(units)s"
+                fields = \
+                    {
+                        "value" : value,
+                        "prefix" : monspec[2],
+                        "units" : monspec[3],
+                    }
+                if previous.has_key(monspec[0:2]) :
+                    delta = (value - previous.get(monspec[0:2], 0)) / interval
+                    format += " (%%(delta).%(precision)df%%(units)s/s)"
+                    fields["delta"] = delta
+                #end if
+                sys.stdout.write \
+                  (
+                        (
+                            (format + "\n")
+                        %
+                            {"precision" : precision}
+                        )
+                    %
+                        fields
+                  )
+                previous[monspec[0:2]] = value
+            #end if
+        #end if
+    #end for
+    try :
+        time.sleep(interval)
+    except KeyboardInterrupt :
+        break
+    #end try
 #end while
