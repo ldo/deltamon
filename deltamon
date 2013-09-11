@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 #+
 # This script periodically executes a given command and monitors the
 # output from it, looking for one or more given numbers and reporting
@@ -31,7 +31,6 @@
 # Written by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 #-
 
-from __future__ import division
 import sys
 import time
 import subprocess
@@ -99,6 +98,7 @@ while True :
         #end if
         break
     #end if
+    data = data.decode("utf-8")
     if show_output :
         sys.stdout.write(data)
     #end if
@@ -127,8 +127,8 @@ while True :
                         "prefix" : monspec[2],
                         "units" : monspec[3],
                     }
-                if previous.has_key(monspec[0:2]) :
-                    delta = (value - previous.get(monspec[0:2], 0)) / interval
+                if monspec[0:2] in previous :
+                    delta = (value - previous[monspec[0:2]]) / interval
                     format += " (%%(delta).%(precision)df%%(units)s/s)"
                     fields["delta"] = delta
                 #end if
