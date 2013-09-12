@@ -75,6 +75,9 @@ binary_prefixes = \
         8 : {"short" : "Yi", "long" : "yobi"},
     }
 
+thousands_sep = "_"
+group_thousands = True
+
 #+
 # Mainline
 #-
@@ -137,6 +140,8 @@ for monspec in args[1:] :
 
 numpat = re.compile(r"(?:^|\W)([\+\-]?[0-9]+(?:\.?[0-9]*))")
 previous = {}
+  # previous values for computing deltas, key is first two components of monspec
+  # (line nr and component nr within line)
 while True :
     child = subprocess.Popen \
       (
@@ -176,14 +181,45 @@ while True :
                     value_precision = 0
                     value = int(value)
                 #end if
-                format = "%%(prefix)s: %%(value).%(value_precision)df%%(units)s"
-                format_fields = \
-                    {
-                        "value_precision" : value_precision,
-                    }
+                valuestr = "%%.%df" % value_precision % value
+                if group_thousands :
+                    fractstart = valuestr.find(".")
+                    if fractstart >= 0 :
+                        inintpart = valuestr[0:fractstart]
+                        infractpart = valuestr[fractstart + 1:]
+                    else :
+                        inintpart = valuestr
+                        infractpart = None
+                    #end if
+                    outintpart = ""
+                    outfractpart = ""
+                    while True :
+                        if len(outintpart) != 0 and len(inintpart) != 0 :
+                            outintpart = thousands_sep + outintpart
+                        #end if
+                        outintpart = inintpart[-3:] + outintpart
+                        inintpart = inintpart[:-3]
+                        if len(inintpart) == 0 :
+                            break
+                    #end while
+                    if infractpart != None :
+                        while True :
+                            if len(outfractpart) != 0 and len(infractpart) != 0 :
+                                outfractpart += thousands_sep
+                            #end if
+                            outfractpart += infractpart[:3]
+                            infractpart = infractpart[3:]
+                            if len(infractpart) == 0 :
+                                break
+                        #end while
+                    #end if
+                    valuestr = outintpart + ("", "." + outfractpart)[infractpart != None]
+                #end if
+                format = "%%(prefix)s: %%(value)s%%(units)s"
+                format_fields = {}
                 data_fields = \
                     {
-                        "value" : value,
+                        "value" : valuestr,
                         "prefix" : monspec[2],
                         "units" : monspec[3],
                     }
