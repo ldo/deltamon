@@ -237,6 +237,7 @@ while True :
     try :
         time.sleep(interval)
     except KeyboardInterrupt :
+        sys.stdout.write("\n") # avoid peculiarities with readline and shell prompt
         break
     #end try
 #end while
