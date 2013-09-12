@@ -205,11 +205,18 @@ while True :
                             if scale_exp in autoscale :
                                 scale_entry = autoscale[scale_exp]
                             else :
-                                scale_entry = autoscale[(min, max)[scale_exp > 0](autoscale.keys())]
+                                best_exp = (min, max)[scale_exp > 0](autoscale.keys())
+                                if scale_exp > 0 and best_exp > 0 :
+                                    scale_entry = autoscale[best_exp]
+                                else :
+                                    scale_entry = None
+                                #end if
                             #end if
-                            delta /= scale_multiplier ** scale_exp
-                            scale_prefix = scale_entry["short"]
-                            delta_precision = 3
+                            if scale_entry != None :
+                                delta /= scale_multiplier ** scale_exp
+                                scale_prefix = scale_entry["short"]
+                                delta_precision = 3
+                            #end if
                         #end if
                     #end if
                     format += " (%%(delta).%(delta_precision)df%%(scale_prefix)s%%(units)s/s)"
