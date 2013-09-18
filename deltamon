@@ -143,22 +143,12 @@ previous = {}
   # previous values for computing deltas, key is first two components of monspec
   # (line nr and component nr within line)
 while True :
-    child = subprocess.Popen \
+    data = subprocess.check_output \
       (
         args = cmd,
-        stdout = subprocess.PIPE,
         close_fds = False,
         shell = True,
       )
-    (data, _) = child.communicate()
-    if child.returncode != 0 :
-        if child.returncode < 0 :
-            sys.stderr.write("child terminated with signal %d\n" % - child.returncode)
-        else :
-            sys.stderr.write("child terminated with status %d\n" % child.returncode)
-        #end if
-        break
-    #end if
     data = data.decode("utf-8")
     if show_output :
         sys.stdout.write(data)
