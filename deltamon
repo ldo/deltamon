@@ -171,6 +171,8 @@ while True :
                     value_precision = 0
                     value = int(value)
                 #end if
+                valuesign = math.copysign(1, value)
+                value = abs(value)
                 valuestr = "%%.%df" % value_precision % value
                 if group_thousands :
                     fractstart = valuestr.find(".")
@@ -205,6 +207,9 @@ while True :
                     #end if
                     valuestr = outintpart + ("", "." + outfractpart)[infractpart != None]
                 #end if
+                if valuesign < 0 :
+                    valuestr = "-" + valuestr
+                #end if
                 format = "%%(prefix)s: %%(value)s%%(units)s"
                 format_fields = {}
                 data_fields = \
@@ -218,6 +223,8 @@ while True :
                     delta_precision = 0
                     scale_prefix = ""
                     if autoscale != None and delta != 0 :
+                        deltasign = math.copysign(1, delta)
+                        delta = abs(delta)
                         scale_exp = \
                             (
                                 math.floor
@@ -244,6 +251,7 @@ while True :
                                 delta_precision = 3
                             #end if
                         #end if
+                        delta *= deltasign
                     #end if
                     format += " (%%(delta).%(delta_precision)df%%(scale_prefix)s%%(units)s/s)"
                     format_fields["delta_precision"] = delta_precision
