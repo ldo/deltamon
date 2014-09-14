@@ -31,7 +31,8 @@
 #         if present, then the full output of <cmd> is displayed each time
 #         prior to displaying the extracted numbers.
 #
-# Written by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+# Copyright 2009-2013 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+# Licensed under CC-BY-SA <http://creativecommons.org/licenses/by-sa/4.0/>.
 #-
 
 import sys
