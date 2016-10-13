@@ -35,16 +35,6 @@ prop_conv = \
         bool : lambda x : str(int(x)),
     }
 
-def get_prop(obj, interface, propname, conv = lambda x : x) :
-    "returns the value of a specified property from a specified interface for the object."
-    return \
-        conv(dbus.Interface \
-          (
-            obj,
-            dbus_interface = "org.freedesktop.DBus.Properties"
-          ).Get(interface, propname))
-#end get_prop
-
 def set_prop(obj, interface, propname, val) :
     "sets a new value for a specified property via a specified interface for the object."
     conv = prop_conv.get(type(val), str)
@@ -59,8 +49,6 @@ def call(obj, interface, methname, args) :
     return \
         dbus.Interface(obj, interface).get_dbus_method(methname)(*tuple(str(arg) for arg in args))
 #end call
-
-to_bool = lambda x : bool(int(x))
 
 kde_progress_interface = "org.kde.kdialog.ProgressDialog"
 
