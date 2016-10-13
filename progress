@@ -1,0 +1,173 @@
+#!/usr/bin/python3
+#+
+# This script periodically executes a given command, and uses the
+# output to update a KDE progress dialog, stopping when it gets to 100%.
+# Invoke it as follows:
+#
+#     progress [<options>] <cmd> <value-monitor-spec> <limit-monitor-spec> <msg>
+#
+# where <cmd> is the command to execute to examine the output from, and
+# the <value-monitor-spec> and <limit-monitor-spec> indicate where to
+# obtain the current value and limit value from the output. Each monitor-spec
+# takes the form <linenr>:<fieldnr>, where <linenr> is the line number
+# in the output (counting from 1), and <fieldnr> counts which number-resembling
+# field on that line (counting from 1) to extract. <msg> is the message to
+# display in the progress dialog.
+#
+# Copyright 2016 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+# Licensed under CC-BY-SA <http://creativecommons.org/licenses/by-sa/4.0/>.
+#-
+
+import sys
+import os
+import subprocess
+import re
+import time
+import dbus
+import getopt
+
+#+
+# Useful D-Bus stuff
+#-
+
+prop_conv = \
+    {
+        bool : lambda x : str(int(x)),
+    }
+
+def get_prop(obj, interface, propname, conv = lambda x : x) :
+    "returns the value of a specified property from a specified interface for the object."
+    return \
+        conv(dbus.Interface \
+          (
+            obj,
+            dbus_interface = "org.freedesktop.DBus.Properties"
+          ).Get(interface, propname))
+#end get_prop
+
+def set_prop(obj, interface, propname, val) :
+    "sets a new value for a specified property via a specified interface for the object."
+    conv = prop_conv.get(type(val), str)
+    dbus.Interface \
+      (
+        obj,
+        dbus_interface = "org.freedesktop.DBus.Properties"
+      ).Set(interface, propname, conv(val))
+#end set_prop
+
+def call(obj, interface, methname, args) :
+    return \
+        dbus.Interface(obj, interface).get_dbus_method(methname)(*tuple(str(arg) for arg in args))
+#end call
+
+to_bool = lambda x : bool(int(x))
+
+kde_progress_interface = "org.kde.kdialog.ProgressDialog"
+
+#+
+# Mainline
+#-
+
+interval = 2.0
+show_output = False
+nr_steps = 100
+(opts, args) = getopt.getopt \
+  (
+    sys.argv[1:],
+    "",
+    ("interval=", "show-output", "steps=")
+  )
+for keyword, value in opts :
+    if keyword == "--interval" :
+        interval = float(value)
+    elif keyword == "--show-output" :
+        show_output = True
+    elif keyword == "--steps" :
+        nr_steps = int(value)
+    #end if
+#end for
+if len(args) != 4 :
+    raise getopt.GetoptError("need exactly 4 args, the command, value_spec, limit_spec and message")
+#end if
+cmd = args[0]
+msg = args[3]
+numpat = re.compile(r"(?:^|\W)([\+\-]?[0-9]+(?:\.?[0-9]*))")
+
+monspecs = []
+for monspec in args[1:3] :
+    parts = monspec.split(":", 1)
+    if len(parts) != 2 :
+        raise getopt.GetoptError \
+          (
+            "<monitor-spec> \"%s\" must be of form <linenr>:<fieldnr>" % monspec
+         )
+    #end if
+    monspecs.append((int(parts[0]), int(parts[1])))
+#end for
+
+bus_name, obj_path = subprocess.check_output \
+  (
+    args = ("kdialog", "--progressbar", msg, str(nr_steps)),
+    stdin = subprocess.DEVNULL
+  ).rstrip().decode().split(" ", 1)
+
+sys.stderr.write("bus_name = %s, obj_path = %s\n" % (repr(bus_name), repr(obj_path))) # debug
+progress_dialog = dbus.SessionBus().get_object(bus_name, obj_path)
+  # read/write properties: “maximum : int”, “value : int” and “autoClose : bool”
+  # methods: “setLabelText(label : str)”, “showCancelButton(value : bool)”, “close()”
+set_prop \
+  (
+    obj = progress_dialog,
+    interface = kde_progress_interface,
+    propname = "value",
+    val = 0
+  )
+set_prop \
+  (
+    obj = progress_dialog,
+    interface = kde_progress_interface,
+    propname = "autoClose",
+    val = True
+  )
+
+while True :
+    data = subprocess.check_output \
+      (
+        args = cmd,
+        close_fds = False,
+        shell = True,
+      ).decode()
+    if show_output :
+        sys.stdout.write(data)
+    #end if
+    data = data.split("\n")[:max(m[0] for m in monspecs)]
+    parsed = []
+    for line in data :
+        parsed.append(list(m.group(1) for m in numpat.finditer(line)))
+    #end for
+    sys.stderr.write("parsed = %s\n" % repr(parsed)) # debug
+    value = float(parsed[monspecs[0][0] - 1][monspecs[0][1] - 1])
+    limit = float(parsed[monspecs[1][0] - 1][monspecs[1][1] - 1])
+    sys.stderr.write("value/limit = %.6g/%.6g\n" % (value, limit)) # debug
+    try :
+        set_prop \
+          (
+            obj = progress_dialog,
+            interface = kde_progress_interface,
+            propname = "value",
+            val = round(value * nr_steps / limit)
+          )
+    except dbus.exceptions.DBusException as fail :
+        if fail.get_dbus_name() == "org.freedesktop.DBus.Error.ServiceUnknown" :
+            sys.stderr.write("progress dialog has gone away\n") # debug
+            break
+        #end if
+        raise
+    #end try
+    try :
+        time.sleep(interval)
+    except KeyboardInterrupt :
+        sys.stdout.write("\n") # avoid peculiarities with readline and shell prompt
+        break
+    #end try
+#end while
