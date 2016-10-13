@@ -46,6 +46,8 @@ def set_prop(obj, interface, propname, val) :
 #end set_prop
 
 def call(obj, interface, methname, args) :
+    "calls the specified method with the given tuple of args via a specified" \
+    " interface for the object."
     return \
         dbus.Interface(obj, interface).get_dbus_method(methname)(*tuple(str(arg) for arg in args))
 #end call
