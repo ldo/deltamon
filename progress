@@ -104,7 +104,6 @@ bus_name, obj_path = subprocess.check_output \
     stdin = subprocess.DEVNULL
   ).rstrip().decode().split(" ", 1)
 
-sys.stderr.write("bus_name = %s, obj_path = %s\n" % (repr(bus_name), repr(obj_path))) # debug
 progress_dialog = dbus.SessionBus().get_object(bus_name, obj_path)
   # read/write properties: “maximum : int”, “value : int” and “autoClose : bool”
   # methods: “setLabelText(label : str)”, “showCancelButton(value : bool)”, “close()”
@@ -138,10 +137,8 @@ while True :
     for line in data :
         parsed.append(list(m.group(1) for m in numpat.finditer(line)))
     #end for
-    sys.stderr.write("parsed = %s\n" % repr(parsed)) # debug
     value = float(parsed[monspecs[0][0] - 1][monspecs[0][1] - 1])
     limit = float(parsed[monspecs[1][0] - 1][monspecs[1][1] - 1])
-    sys.stderr.write("value/limit = %.6g/%.6g\n" % (value, limit)) # debug
     try :
         if backwards :
             value = limit - value
@@ -155,8 +152,7 @@ while True :
           )
     except dbus.exceptions.DBusException as fail :
         if fail.get_dbus_name() == "org.freedesktop.DBus.Error.ServiceUnknown" :
-            sys.stderr.write("progress dialog has gone away\n") # debug
-            break
+            break # progress dialog has gone away
         #end if
         raise
     #end try
