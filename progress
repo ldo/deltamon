@@ -61,14 +61,17 @@ kde_progress_interface = "org.kde.kdialog.ProgressDialog"
 interval = 2.0
 show_output = False
 nr_steps = 100
+backwards = False
 (opts, args) = getopt.getopt \
   (
     sys.argv[1:],
     "",
-    ("interval=", "show-output", "steps=")
+    ("backwards", "interval=", "show-output", "steps=")
   )
 for keyword, value in opts :
-    if keyword == "--interval" :
+    if keyword == "--backwards" :
+        backwards = True
+    elif keyword == "--interval" :
         interval = float(value)
     elif keyword == "--show-output" :
         show_output = True
@@ -140,6 +143,9 @@ while True :
     limit = float(parsed[monspecs[1][0] - 1][monspecs[1][1] - 1])
     sys.stderr.write("value/limit = %.6g/%.6g\n" % (value, limit)) # debug
     try :
+        if backwards :
+            value = limit - value
+        #end if
         set_prop \
           (
             obj = progress_dialog,
