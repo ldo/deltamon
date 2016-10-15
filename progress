@@ -14,6 +14,40 @@
 # field on that line (counting from 1) to extract. <msg> is the message to
 # display in the progress dialog.
 #
+# Valid options are as follows:
+#
+#     --backwards
+#         if specified, then the current value is assumed to start from the
+#         limit value and decrease to 0 when complete.
+#     --interval=<nrseconds>
+#         how long to wait between executions of the command (decimals allowed).
+#         Defaults to 2.0 seconds.
+#     --show-output
+#         if present, then the full output of <cmd> is displayed each time
+#         prior to displaying the extracted numbers.
+#
+# Example: monitoring the copying of a directory tree: suppose you have
+# issued a command like
+#
+#      cp -a «src-dir» «dst-dir»
+#
+# then you can monitor its progress with a command like
+#
+#      progress 'du -ks «src-dir»; du -ks «dst-dir»' 2:1 1:1 "Copying..."
+#
+# Example of using the --backwards option: deleting a large directory tree.
+# First, save its initial size:
+#
+#     initial_size=$(du -ks «dir» | cut -f1)
+#
+# Start the deletion going as as background task:
+#
+#     rm -rf «dir» &
+#
+# and monitor the progress:
+#
+#     progress --backwards "echo $initial_size; du -ks «dir»" 1:1 2:1 "Deleting..."
+#
 # Copyright 2016 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 # Licensed under CC-BY-SA <http://creativecommons.org/licenses/by-sa/4.0/>.
 #-
