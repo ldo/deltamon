@@ -19,6 +19,9 @@
 #     --backwards
 #         if specified, then the current value is assumed to start from the
 #         limit value and decrease to 0 when complete.
+#     --check-process=<pid>
+#         check that the process with the given pid still exists at each
+#         update.
 #     --interval=<nrseconds>
 #         how long to wait between executions of the command (decimals allowed).
 #         Defaults to 2.0 seconds.
@@ -55,6 +58,7 @@
 import sys
 import os
 import subprocess
+import errno
 import re
 import time
 import dbus
@@ -96,15 +100,18 @@ interval = 2.0
 show_output = False
 nr_steps = 100
 backwards = False
+check_process = None
 (opts, args) = getopt.getopt \
   (
     sys.argv[1:],
     "",
-    ("backwards", "interval=", "show-output", "steps=")
+    ("backwards", "check-process=", "interval=", "show-output", "steps=")
   )
 for keyword, value in opts :
     if keyword == "--backwards" :
         backwards = True
+    elif keyword == "--check-process" :
+        check_process = int(value)
     elif keyword == "--interval" :
         interval = float(value)
     elif keyword == "--show-output" :
@@ -157,6 +164,18 @@ set_prop \
   )
 
 while True :
+    if check_process != None :
+        try :
+            os.kill(check_process, 0)
+        except OSError as Err :
+            if Err.errno == errno.ESRCH :
+                sys.stderr.write("process %d has terminated.\n" % check_process)
+                break
+            elif Err.errno != errno.EPERM : # proves process exists
+                raise
+            #end if
+        #end try
+    #end if
     try :
         data = subprocess.check_output \
           (
