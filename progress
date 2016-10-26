@@ -157,39 +157,46 @@ set_prop \
   )
 
 while True :
-    data = subprocess.check_output \
-      (
-        args = cmd,
-        close_fds = False,
-        shell = True,
-      ).decode()
-    if show_output :
-        sys.stdout.write(data)
-    #end if
-    data = data.split("\n")[:max(m[0] for m in monspecs)]
-    parsed = []
-    for line in data :
-        parsed.append(list(m.group(1) for m in numpat.finditer(line)))
-    #end for
-    value = float(parsed[monspecs[0][0] - 1][monspecs[0][1] - 1])
-    limit = float(parsed[monspecs[1][0] - 1][monspecs[1][1] - 1])
     try :
-        if backwards :
-            value = limit - value
-        #end if
-        set_prop \
+        data = subprocess.check_output \
           (
-            obj = progress_dialog,
-            interface = kde_progress_interface,
-            propname = "value",
-            val = round(value * nr_steps / limit)
-          )
-    except dbus.exceptions.DBusException as fail :
-        if fail.get_dbus_name() == "org.freedesktop.DBus.Error.ServiceUnknown" :
-            break # progress dialog has gone away
-        #end if
-        raise
+            args = cmd,
+            close_fds = False,
+            shell = True,
+          ).decode()
+    except subprocess.CalledProcessError as fail :
+        sys.stderr.write("Error invoking command: %s\n" % str(fail))
+        data = None
     #end try
+    if data != None :
+        if show_output :
+            sys.stdout.write(data)
+        #end if
+        data = data.split("\n")[:max(m[0] for m in monspecs)]
+        parsed = []
+        for line in data :
+            parsed.append(list(m.group(1) for m in numpat.finditer(line)))
+        #end for
+        value = float(parsed[monspecs[0][0] - 1][monspecs[0][1] - 1])
+        limit = float(parsed[monspecs[1][0] - 1][monspecs[1][1] - 1])
+        try :
+            if backwards :
+                value = limit - value
+            #end if
+            set_prop \
+              (
+                obj = progress_dialog,
+                interface = kde_progress_interface,
+                propname = "value",
+                val = round(value * nr_steps / limit)
+              )
+        except dbus.exceptions.DBusException as fail :
+            if fail.get_dbus_name() == "org.freedesktop.DBus.Error.ServiceUnknown" :
+                break # progress dialog has gone away
+            #end if
+            raise
+        #end try
+    #end if
     try :
         time.sleep(interval)
     except KeyboardInterrupt :
