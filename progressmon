@@ -4,7 +4,7 @@
 # output to update a KDE progress dialog, stopping when it gets to 100%.
 # Invoke it as follows:
 #
-#     progress [<options>] <cmd> <value-monitor-spec> <limit-monitor-spec> <msg>
+#     progressmon [<options>] <cmd> <value-monitor-spec> <limit-monitor-spec> <msg>
 #
 # where <cmd> is the command to execute to examine the output from, and
 # the <value-monitor-spec> and <limit-monitor-spec> indicate where to
@@ -36,7 +36,7 @@
 #
 # then you can monitor its progress with a command like
 #
-#      progress 'du -ks «src-dir»; du -ks «dst-dir»' 2:1 1:1 "Copying..."
+#      progressmon 'du -ks «src-dir»; du -ks «dst-dir»' 2:1 1:1 "Copying..."
 #
 # Example of using the --backwards option: deleting a large directory tree.
 # First, save its initial size:
@@ -49,7 +49,7 @@
 #
 # and monitor the progress:
 #
-#     progress --backwards "echo $initial_size; du -ks «dir»" 1:1 2:1 "Deleting..."
+#     progressmon --backwards "echo $initial_size; du -ks «dir»" 1:1 2:1 "Deleting..."
 #
 # Copyright 2016 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 # Licensed under CC-BY-SA <http://creativecommons.org/licenses/by-sa/4.0/>.
