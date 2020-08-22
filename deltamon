@@ -30,14 +30,22 @@
 #     --show-output
 #         if present, then the full output of <cmd> is displayed each time
 #         prior to displaying the extracted numbers.
+#     --while-exists=«type»:«item»
+#         if specified, indicates a check to perform before each invocation
+#         of the command; if the check fails, then the monitoring stops without
+#         signalling an error. «type» can be “file” (to check the
+#         existence of a filename given by «item») or “pid” (to check
+#         the existence of a process with PID given by «item»).
 #
-# Copyright 2009-2017 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+# Copyright 2009-2020 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 # Licensed under CC-BY-SA <http://creativecommons.org/licenses/by-sa/4.0/>.
 #-
 
 import sys
+import os
 import math
 import time
+import errno
 import subprocess
 import re
 import getopt
@@ -116,11 +124,34 @@ def sep_thousands(valuestr) :
         valuestr
 #end sep_thousands
 
+def process_exists(pid) :
+    try :
+        os.kill(pid, 0)
+    except OSError as err :
+        if err.errno == errno.ESRCH :
+            result = False
+        elif err.errno == errno.EPERM : # proves process exists
+            result = True
+        else :
+            raise
+        #end if
+    else :
+        result = True
+    #end try
+    return \
+        result
+#end process_exists
+
 #+
 # Mainline
 #-
 
-(opts, args) = getopt.getopt \
+exists_checks = \
+    {
+        "file" : lambda fname : lambda : os.path.isfile(fname),
+        "pid" : lambda pid : lambda : process_exists(int(pid)),
+    }
+opts, args = getopt.getopt \
   (
     sys.argv[1:],
     "",
@@ -128,6 +159,7 @@ def sep_thousands(valuestr) :
         "autoscale=",
         "interval=",
         "show-output",
+        "while-exists=",
     ]
   )
 if len(args) < 2 :
@@ -139,6 +171,7 @@ if len(args) < 2 :
 autoscale = None
 interval = 2.0
 show_output = False
+exists_check = lambda : True
 for keyword, value in opts :
     if keyword == "--autoscale" :
         if "decimal".startswith(value.lower()) :
@@ -156,6 +189,20 @@ for keyword, value in opts :
         interval = float(value)
     elif keyword == "--show-output" :
         show_output = True
+    elif keyword == "--while-exists" :
+        check_type, check_arg = value.split(":", 1)
+        if not check_type in exists_checks :
+            raise getopt.GetoptError \
+              (
+                    "unrecognized --while-exists type “%s”, must be one of %s"
+                %
+                    (
+                        check_type,
+                        ", ".join(sorted(exists_checks.keys())),
+                    )
+              )
+        #end if
+        exists_check = exists_checks[check_type](check_arg)
     #end if
 #end for
 cmd = args[0]
@@ -181,6 +228,8 @@ previous = {}
   # previous values for computing deltas, key is first two components of monspec
   # (line nr and component nr within line)
 while True :
+    if not exists_check() :
+        break
     data = subprocess.check_output \
       (
         args = cmd,
