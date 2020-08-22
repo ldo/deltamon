@@ -167,11 +167,11 @@ while True :
     if check_process != None :
         try :
             os.kill(check_process, 0)
-        except OSError as Err :
-            if Err.errno == errno.ESRCH :
+        except OSError as err :
+            if err.errno == errno.ESRCH :
                 sys.stderr.write("process %d has terminated.\n" % check_process)
                 break
-            elif Err.errno != errno.EPERM : # proves process exists
+            elif err.errno != errno.EPERM : # proves process exists
                 raise
             #end if
         #end try
